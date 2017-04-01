@@ -34,7 +34,9 @@ struct globalmem_dev *globalmem_devp;                  //声明一个全局设�
 
 static int globalmem_open(struct inode *inode,struct file *filep){
 
-	filep->private_data = globalmem_devp;          //设备打开，设备指针指向file的私有数据private_data，驱动文件通过访问priavte_data就能访问设备文件
+        struct globalmem_dev *dev=container_of(inode->i_cdev,struct globalmem_dev,cdev);    //从inode结构中获取设备globalmem_devp地址
+	filep->private_data = dev;
+        //filep->private_data = globalmem_devp          //两种方式都行
 	return 0;
 }
 
@@ -171,34 +173,37 @@ static int __init globalmem_init(void){
 
 	   dev_t devno;
        int   ret,i;
-	   devno =MKDEV(globalmem_major,0);                       //生成设备号
+	   devno =MKDEV(globalmem_major,0);                      
 
 	   if(globalmem_major)
-	   	register_chrdev_region(devno,1,"globalmem");      //手动注册设备号
+	   	register_chrdev_region(devno,DEVICE_NUM,"globalmem");      //  手动注册设备号 连续编号的总数为DEVICE_NUM
 	   else{
-	   	alloc_chrdev_region(&devno,0,1,"globalmem");      //自动注册设备号(系统自动分配设备号)
-		globalmem_major = MAJOR(devno);                   //获得主设备号
+	   	alloc_chrdev_region(&devno,0,DEVICE_NUM,"globalmem");      //自动注册设备号(系统自动分配设备号)
+		globalmem_major = MAJOR(devno);                   
 	   }
 
-           globalmem_devp=kzalloc(sizeof(struct globalmem_dev),GFP_KERNEL);   //为设备分配内存空间
+           globalmem_devp=kzalloc(sizeof(struct globalmem_dev)*DEVICE_NUM,GFP_KERNEL);   // 为设备分配内存空间 单个设备大小*DEVICE_NUM
 	   if(!globalmem_devp){
 		  ret = -ENOMEM;
 		  goto fail_alloc; 
 	   	}
-	   globalmem_setup_cdev(globalmem_devp,0);                  //初始化设备并向系统添加一个cdev，完成设备的注册 
+           for(i=0;i<DEVICE_NUM;i++)
+	   	globalmem_setup_cdev(globalmem_devp+i,i);                   //为每个设备单独初始化并向系统添加各自的cdev，完成设备的注册                
 
 	   return 0;
 fail_alloc:
-	   unregister_chrdev_region(devno,1);
+	   unregister_chrdev_region(devno,DEVICE_NUM);
 	   return -1;
 	   	
 	
 }
 
 
-static void __exit globalmem_exit(void){                          //从系统中删除一个cdev设备，并回收设备号，完成设备卸载
-	cdev_del(&(globalmem_devp)->cdev);	
-	unregister_chrdev_region(MKDEV(globalmem_major,0),1);      
+static void __exit globalmem_exit(void){                                    //独立从系统中删除每个cdev设备，并回收设备号，完成设备卸载  
+        int i;
+        for(i=0;i<DEVICE_NUM;i++)                                                     
+		cdev_del(&(globalmem_devp+i)->cdev);	
+	unregister_chrdev_region(MKDEV(globalmem_major,0),DEVICE_NUM);      
 	kfree(globalmem_devp);
 }
 
