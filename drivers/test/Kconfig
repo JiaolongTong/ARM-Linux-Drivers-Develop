@@ -1,0 +1,21 @@
+#
+#TEST driver configuration 
+#
+
+menuconfig TEST
+        tristate "Test support"
+
+if TEST
+
+config HELLO_TEST 
+        tristate "Hello support"
+
+config PARAM_TEST
+        tristate "Parm support"
+
+
+config  GLOBALMEM_TEST    
+        tristate "globalmem support"
+
+
+endif   #TEST

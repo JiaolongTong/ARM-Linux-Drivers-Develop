@@ -1,0 +1,9 @@
+menu "NXP I2C encoder chips"
+     depends on DRM && I2C
+
+config DRM_I2C_NXP_TDA998X
+	tristate "NXP Semiconductors TDA998X HDMI encoder"
+	select HDMI
+	help
+	  Support for NXP Semiconductors TDA998X HDMI encoders.
+endmenu

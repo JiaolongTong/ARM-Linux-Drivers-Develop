@@ -1,0 +1,29 @@
+#
+# PWM infrastructure and devices
+#
+
+menuconfig GENERIC_PWM
+	tristate "PWM Support"
+	default n
+	help
+	  Enables PWM device support implemented via a generic
+	  framework.  If unsure, say N.
+
+config DAVINCI_EHRPWM
+	bool "Davinci eHRPWM support"
+	select HAVE_PWM
+	depends on GENERIC_PWM && (ARCH_DAVINCI_DA850 || SOC_OMAPAM33XX)
+	help
+	  This option enables support for eHRPWM driver. If
+	  unsure, say N.
+
+config ECAP_PWM
+	tristate "eCAP PWM support"
+	select HAVE_PWM
+	depends on GENERIC_PWM && (ARCH_DAVINCI_DA850 || SOC_OMAPAM33XX)
+	help
+	  This option enables device driver support for eCAP module found
+	  on DA8xx Processors & AM335x processor. eCAP module is used to
+	  generate wide range of PWM waveforms. Maximum frequency generated
+	  is equal to half the system clock frequency.
+	  Say Y to enable the eCAP support. If unsure, say N.
