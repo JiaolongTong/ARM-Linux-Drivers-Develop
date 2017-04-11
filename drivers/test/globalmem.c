@@ -24,7 +24,8 @@ module_param(globalmem_major,int,S_IRUGO);             //模块参数，可传�
 
 struct globalmem_dev{                                  //设备结构体，封装了cdev和全局memory
        struct cdev cdev;
-	   unsigned char mem[GLOBALMEM_SIZE];
+       unsigned char mem[GLOBALMEM_SIZE];
+       struct mutex mutex;
 };
 
 
@@ -53,7 +54,9 @@ static long globalmem_ioctl(struct file *filp, unsigned int cmd, unsigned long a
     struct globalmem_dev * dev = filp->private_data;
     switch(cmd){
     case MEM_CLEAR :
+        mutex_lock(&dev->mutex);
 	memset(dev->mem,0,GLOBALMEM_SIZE);
+        mutex_unlock(&dev->mutex);
 	printk(KERN_INFO "globalmem is set to zero\n");
 	break;
     
@@ -73,6 +76,7 @@ static ssize_t globalmem_read(struct file * filp,char __user * buf,size_t size,l
        return 0;
     if (count > GLOBALMEM_SIZE -p )
           count = GLOBALMEM_SIZE -p;
+    mutex_lock(&dev->mutex);
     if (copy_to_user(buf,dev->mem+p,count)){
        ret= -EINVAL;
     }else{
@@ -80,6 +84,7 @@ static ssize_t globalmem_read(struct file * filp,char __user * buf,size_t size,l
         ret=count;
         printk(KERN_INFO "read %u bytes(s) from %lu\n",count,p);
     }
+    mutex_unlock(&dev->mutex);
     return ret;
 }
 
@@ -93,7 +98,7 @@ static ssize_t globalmem_write(struct file * filp, const char __user *buf,size_t
        return 0;
     if (count > GLOBALMEM_SIZE -p )
           count = GLOBALMEM_SIZE -p;
-
+    mutex_lock(&dev->mutex);
     if(copy_from_user(dev->mem+p,buf,count)){
        ret= -EINVAL;
     }else{
@@ -101,6 +106,7 @@ static ssize_t globalmem_write(struct file * filp, const char __user *buf,size_t
         ret=count;
         printk(KERN_INFO "written  %u bytes(s) from %lu\n",count,p);
     } 
+    mutex_unlock(&dev->mutex);
     return ret;
 }
 
@@ -187,6 +193,8 @@ static int __init globalmem_init(void){
 		  ret = -ENOMEM;
 		  goto fail_alloc; 
 	   	}
+
+           mutex_init(&globalmem_devp->mutex);
            for(i=0;i<DEVICE_NUM;i++)
 	   	globalmem_setup_cdev(globalmem_devp+i,i);                   //为每个设备单独初始化并向系统添加各自的cdev，完成设备的注册                
 
