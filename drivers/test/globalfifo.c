@@ -13,8 +13,8 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
-
-#define GLOBALFIFO_SIZE  0x1000
+#include <linux/poll.h>
+#define GLOBALFIFO_SIZE  20
 #define FIFO_CLEAR   0x1
 #define GLOBALFIFO_MAJOR 240
 #define DEVICE_NUM  10
@@ -60,6 +60,7 @@ static long globalfifo_ioctl(struct file *filp, unsigned int cmd, unsigned long 
     case FIFO_CLEAR :
         mutex_lock(&dev->mutex);
 	memset(dev->mem,0,GLOBALFIFO_SIZE);
+        dev->current_len=0;
         mutex_unlock(&dev->mutex);
 	printk(KERN_INFO "globalfifo is set to zero\n");
 	break;
@@ -215,7 +216,25 @@ static loff_t globalfifo_llseek(struct file * filp, loff_t offset ,int orig)
   return ret;
 }
 
+static unsigned int globalfifo_poll(struct file *filp,poll_table *wait )
+{
 
+       unsigned int mask=0;
+
+       struct globalfifo_dev *dev=filp->private_data;     
+
+       mutex_lock(&dev->mutex);
+
+       poll_wait(filp,&dev->r_wait,wait);          //将本进程对应的等待列表加入读等待队列头
+       poll_wait(filp,&dev->w_wait,wait);          //将本进程对应的等待列表加入写等待队列头
+
+       if(dev->current_len != 0)                   // FIFO长度大于0,表明可读
+             mask |= POLLIN |POLLRDNORM;            // 返回用户可读掩码
+       if(dev->current_len != GLOBALFIFO_SIZE)     // FIFO长度小于GLOBALFIFO_SIZE,表明可写
+             mask |= POLLOUT |POLLRDNORM;           // 返回用户可写掩码
+       mutex_unlock(&dev->mutex);
+       return mask;
+}
 
 static const struct file_operations globalfifo_ops={
 	.owner  = THIS_MODULE,
@@ -225,6 +244,7 @@ static const struct file_operations globalfifo_ops={
 	.write  = globalfifo_write,
 	.release = globalfifo_relase,
 	.unlocked_ioctl  = globalfifo_ioctl,
+        .poll            =globalfifo_poll,
 };
 
 static void globalfifo_setup_cdev(struct globalfifo_dev * dev, int index){
