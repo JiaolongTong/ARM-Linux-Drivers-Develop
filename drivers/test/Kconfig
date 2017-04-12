@@ -17,5 +17,8 @@ config PARAM_TEST
 config  GLOBALMEM_TEST    
         tristate "globalmem support"
 
+config  GLOBALFIFO_TEST    
+        tristate "globalfifo support"
+
 
 endif   #TEST
