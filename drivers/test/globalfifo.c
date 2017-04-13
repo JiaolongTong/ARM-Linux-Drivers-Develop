@@ -30,6 +30,8 @@ struct globalfifo_dev{                                  //设备结构体，封�
        int current_len;
        wait_queue_head_t w_wait;                        //定义写阻塞等待队列头
        wait_queue_head_t r_wait;                        //定义读阻塞等待队列头
+
+       struct fasync_struct *async_queue;               //定义一个异步通知结构
 };
 
 
@@ -43,13 +45,6 @@ static int globalfifo_open(struct inode *inode,struct file *filep){
 	filep->private_data = dev;
         //filep->private_data = globalmem_devp          //两种方式都行
 	return 0;
-}
-
-
-
-static int globalfifo_relase(struct inode *inode,struct file *filp)
-{
-    return 0;
 }
 
 
@@ -119,6 +114,13 @@ static ssize_t globalfifo_read(struct file * filp,char __user * buf,size_t size,
         ret=count;
         wake_up_interruptible(&dev->w_wait);       //读操作完成,让出一部分内存空间，唤醒由于写满导致的阻塞进程
         printk(KERN_INFO "read %u bytes(s) from %lu\n",count,p);
+
+        if(dev->async_queue){                      //向用户进程发送SIGIO信号,指明设备文件可写
+
+              kill_fasync(&dev->async_queue,SIGIO,POLL_OUT);    
+              printk(KERN_DEBUG " %s kill SIGIO\n ",__func__);
+        }
+
     }
 out:    
         mutex_unlock(&dev->mutex);
@@ -171,7 +173,14 @@ static ssize_t globalfifo_write(struct file * filp, const char __user *buf,size_
         ret=count;
         dev->current_len += count;
         printk(KERN_INFO "written  %u bytes(s) from %lu\n",count,p);
-        wake_up_interruptible(&dev->r_wait);            //写操作完成，内存存在可读数据,唤醒由于读空导致的阻塞进程
+        wake_up_interruptible(&dev->r_wait);                        //写操作完成，内存存在可读数据,唤醒由于读空导致的阻塞进程
+
+        if(dev->async_queue){                                       //向用户进程发送SIGIO信号,指明设备文件可读
+
+              kill_fasync( &dev->async_queue, SIGIO, POLL_IN);    
+              printk(KERN_DEBUG " %s kill SIGIO\n ",__func__);
+        }
+             
     } 
 out:    
         mutex_unlock(&dev->mutex);
@@ -236,6 +245,23 @@ static unsigned int globalfifo_poll(struct file *filp,poll_table *wait )
        return mask;
 }
 
+static int globalfifo_fasync(int fd, struct file *filp,int mode){
+
+         struct globalfifo_dev *dev=filp->private_data;
+
+ 
+         return fasync_helper(fd,filp,mode,&dev->async_queue);    // 处理应用层中对设备文件设置FASYNC命令
+
+
+}
+
+static int globalfifo_relase(struct inode *inode,struct file *filp)
+{
+    
+        globalfifo_fasync(-1,filp,0);
+        return 0;
+}
+
 static const struct file_operations globalfifo_ops={
 	.owner  = THIS_MODULE,
 	.open   = globalfifo_open,
@@ -244,8 +270,10 @@ static const struct file_operations globalfifo_ops={
 	.write  = globalfifo_write,
 	.release = globalfifo_relase,
 	.unlocked_ioctl  = globalfifo_ioctl,
-        .poll            =globalfifo_poll,
+        .poll            = globalfifo_poll,
+        .fasync          = globalfifo_fasync,
 };
+
 
 static void globalfifo_setup_cdev(struct globalfifo_dev * dev, int index){
 
