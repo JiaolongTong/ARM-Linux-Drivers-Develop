@@ -20,5 +20,11 @@ config  GLOBALMEM_TEST
 config  GLOBALFIFO_TEST    
         tristate "globalfifo support"
 
+config  SECOND_DEVICE_TEST    
+        tristate "second device support"
 
+config   PLATFORM_DEVICE_DEMO   
+        tristate "platform  device support"
+config   PLATFORM_DRIVER_DEMO   
+        tristate "platform  driver support"
 endif   #TEST
