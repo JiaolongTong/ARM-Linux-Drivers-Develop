@@ -27,4 +27,7 @@ config   PLATFORM_DEVICE_DEMO
         tristate "platform  device support"
 config   PLATFORM_DRIVER_DEMO   
         tristate "platform  driver support"
+
+config  MMAP_DRIVER   
+        tristate "mmap kernel driver support"
 endif   #TEST
