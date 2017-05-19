@@ -10,59 +10,64 @@
 #include <mach/gpio.h>
 #include <plat/mux.h>
 #include <linux/gpio.h>
+#include <linux/interrupt.h>
 #include "am335_platform_data.h"
 
-static int gpio;
+static int gpio_led;
+static int gpio_led_value;
+static int gpio_key;
+static int timer_debounce;
+static int debounce_interval=1;
+static struct timer_list *timer;
+static irqreturn_t gpio_keys_isr(int irq, void *dev_id)
+{
+
+	BUG_ON(irq != gpio_to_irq(gpio_key));
+
+	if (timer_debounce)
+		mod_timer(timer,jiffies + msecs_to_jiffies(timer_debounce));
+	else{
+                if (gpio_led_value == 0)
+		    gpio_set_value(gpio_led,1);
+                else
+                    gpio_set_value(gpio_led,0);
+        }
+	return IRQ_HANDLED;
+}
 
 static int my_probe(struct platform_device * pdev){
 
         printk("Driver is probe in platform bus\n");
-        int result;
+        int error,irq;
+        unsigned long irqflags;
 
-/*
-        result =gpio_direction_output(GPIO_TO_PIN(3,18),1);
-        if(result !=0)
-             printk("gpio_directiom(3_18 failed!\n)\n");
-
-        gpio_set_value(GPIO_TO_PIN(3,18), 1);
-*/
- 
 	struct am335_platform_data *pdata = pdev->dev.platform_data;
      
-        gpio=pdata->gpio;
-
-        result =gpio_direction_output(gpio,1);
-        if(result !=0)
+        gpio_led=GPIO_TO_PIN(3,18);
+        //gpio_key=GPIO_TO_PIN(0,22);
+        error =gpio_direction_output(gpio_led,1);
+        if(error !=0)
              printk("gpio_directiom(3_18 failed!\n)\n");
-
-        gpio_set_value(gpio, 1);
-
+        gpio_set_value(gpio_led, 1);
 /*
-        struct resource *res;
-        res = platform_get_resource(pdev,IORESOURCE_MEM,0);
-        size = resource_size(res);
-        demo_mem=request_mem_region(res->start,size,pdev->name);
-        if(demo_base ==NULL){
-             printk("failed to get memory region\n");
-             return -EINVAL;
-         }
-         demo_base =ioremap(res->start,size);
-         if(demo_base ==NULL){
-            printk("failed to ioremap() region \n");
-            ret =-EINVAL;
-            goto err_req;
-         }
-         gpfcon = readl(demo_base);
-         gpfcon = (gpfcon & (0xff << 8) | (0x55<<8));
-         writel(gpfcon,demo_base);
+        error =gpio_direction_output(gpio_key,0);
+        if(error !=0)
+             printk("gpio_directiom(0_22 failed!\n)\n");
 
-         gpfdata = readl(demo_base+4);
-         gpfdata = gpfdata & (0xf<< 4);
-         writel(gpfdata,demo_base+4);
+        
 
-err_req:
-         release_resource(demo_mem);
-         kfree(demo_mem);
+        error = gpio_set_debounce(gpio_key,debounce_interval *1000);
+	if (error < 0)
+	    timer_debounce = debounce_interval;
+
+        irq = gpio_to_irq(gpio_key);
+	if (irq < 0) 
+	    printk("Unable to get irq number for GPIO %d\n",gpio_key);
+
+	irqflags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING ;
+        error = request_threaded_irq(irq, NULL, gpio_keys_isr, irqflags, "key_led", NULL);
+	if (error < 0) 
+	    printk("Unable to claim irq %d\n",irq);
 */
          return 0;
 
@@ -71,8 +76,8 @@ err_req:
 static int my_remove(struct platform_device * dev){
 
           printk("Driver found device unpluged!\n");
-          gpio_set_value(gpio, 0);
-          
+          gpio_set_value(gpio_led, 0);
+          //free_irq(irq, &ddata->data[i]);
           return 0;
 
 }

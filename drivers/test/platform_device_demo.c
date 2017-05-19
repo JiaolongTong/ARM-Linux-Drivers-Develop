@@ -15,11 +15,14 @@ struct resource am335_demo_source[] ={
          .flags =IORESOURCE_MEM,
  }
 };
-struct am335_platform_data am335_demo_data ={
+struct am335_platform_data am335_demo_data[] ={
 
-           .gpio =GPIO_TO_PIN(3,18),
-
-
+        {
+          .gpio =GPIO_TO_PIN(3,18),
+        },
+        {
+          .gpio =GPIO_TO_PIN(0,22),
+        },
 };
 struct platform_device am335_device_demo ={
 
